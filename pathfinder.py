@@ -66,13 +66,19 @@ parser.add_argument("--phy_scale_y", help="Vertical scaling factor for tree imag
 parser.add_argument("--acc_by_edge_type", help="Break accuracy counts into P->M, M->M, M->P.", action='store_true', default=False)
 parser.add_argument("-t", "--true_paths", help="List of true migration paths.", type=str, default=None)
 parser.add_argument("-o", "--output", help="Output directory to put results in.", type=str, default=".")
+parser.add_argument("--log_ancestral_inference", help="Keep inputs/outputs of MEGA ancestral sequence inference calculations for debugging purposes.", action='store_true', default=False)
 
 args = parser.parse_args()
 
 v_level = args.verbosity
 
+mega_io_logging = args.log_ancestral_inference
+
 if args.output != "." and not os.path.exists(args.output):
 	os.mkdir(args.output)
+
+if mega_io_logging and not os.path.exists(os.path.join(args.output, "ancestral_inference_logging")):
+	os.mkdir(os.path.join(args.output, "ancestral_inference_logging"))
 
 dump_edges = True
 edge_dump_file = None
@@ -389,7 +395,7 @@ def parse_ep_outputs(basename, tree, tumor_site_map):
 
 def clear_ep_files(basename):
 	os.remove("{}eps.nwk".format(basename))
-	#os.remove("{}eps.csv".format(basename))
+	os.remove("{}eps.csv".format(basename))
 	os.remove("{}eps_avg_blens.csv".format(basename))
 	os.remove("{}eps_data_coverage.csv".format(basename))
 	os.remove("{}eps_ML_data.csv".format(basename))
@@ -404,14 +410,21 @@ def get_eps(tree, aln_filename, site_labels):
 	anc_seqs_filename = "{}eps.csv".format(temp_basename)
 	megacc_cmd = "{} -a {} -d {} -t {} -o {} -g {}".format(megacc_app, ancestral_seqs_mao, aln_filename, tree_filename, anc_seqs_filename, outgroup_file)
 	if print_megacc_cmd: print(megacc_cmd)
+	if mega_io_logging:
+		shutil.copy(aln_filename, os.path.join(args.output, "ancestral_inference_logging"))
+		shutil.copy(tree_filename, os.path.join(args.output, "ancestral_inference_logging"))
 	FNULL = open(os.devnull, 'w')
 	return_code = subprocess.call(megacc_cmd, stdout=FNULL, stderr=subprocess.STDOUT)
 	if return_code != 0:
 		raise ValueError('MEGACC returned error code', return_code)
+	if mega_io_logging:
+		try:
+			shutil.copy(anc_seqs_filename, os.path.join(args.output, "ancestral_inference_logging"))
+		except:
+			print("Could not copy ancestral sequence inference result file to logging directory.")
 	eps = parse_ep_outputs(temp_basename, tree, site_labels)
 	clear_ep_files(temp_basename)
 	return eps
-
 
 def get_node_tumors(eps, threshold):
 	new_tumor_membership = {}
