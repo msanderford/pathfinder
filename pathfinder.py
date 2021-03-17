@@ -403,7 +403,8 @@ def clear_ep_files(basename):
 	os.remove("{}eps_summary.txt".format(basename))
 
 def get_eps(tree, aln_filename, site_labels):
-	temp_basename = os.path.join(scratch_dir, "temp_{}_".format(random.randint(100000, 999999)))
+	temp_id = random.randint(100000, 999999)
+	temp_basename = os.path.join(scratch_dir, "temp_{}_".format(temp_id))
 	tree_filename = os.path.join(scratch_dir, "{}_anc_seqs_in.nwk".format(os.path.splitext(os.path.basename(aln_filename))[0]))
 	temp_tree = copy.deepcopy(tree)
 	Phylo.write(temp_tree, tree_filename, 'newick')
@@ -411,8 +412,8 @@ def get_eps(tree, aln_filename, site_labels):
 	megacc_cmd = "{} -a {} -d {} -t {} -o {} -g {}".format(megacc_app, ancestral_seqs_mao, aln_filename, tree_filename, anc_seqs_filename, outgroup_file)
 	if print_megacc_cmd: print(megacc_cmd)
 	if mega_io_logging:
-		shutil.copy(aln_filename, os.path.join(args.output, "ancestral_inference_logging"))
-		shutil.copy(tree_filename, os.path.join(args.output, "ancestral_inference_logging"))
+		shutil.copy(aln_filename, os.path.join(args.output, "ancestral_inference_logging", "temp_{}_".format(temp_id) + os.path.basename(aln_filename)))
+		shutil.copy(tree_filename, os.path.join(args.output, "ancestral_inference_logging", "temp_{}_".format(temp_id) + os.path.basename(tree_filename)))
 	FNULL = open(os.devnull, 'w')
 	return_code = subprocess.call(megacc_cmd, stdout=FNULL, stderr=subprocess.STDOUT)
 	if return_code != 0:
