@@ -409,6 +409,7 @@ def get_eps(tree, aln_filename, site_labels):
 	temp_tree = copy.deepcopy(tree)
 	Phylo.write(temp_tree, tree_filename, 'newick')
 	anc_seqs_filename = "{}eps.csv".format(temp_basename)
+	node_map_filename = "{}eps_nodeMap.txt".format(temp_basename)
 	megacc_cmd = "{} -a {} -d {} -t {} -o {} -g {}".format(megacc_app, ancestral_seqs_mao, aln_filename, tree_filename, anc_seqs_filename, outgroup_file)
 	if print_megacc_cmd: print(megacc_cmd)
 	if mega_io_logging:
@@ -421,6 +422,7 @@ def get_eps(tree, aln_filename, site_labels):
 	if mega_io_logging:
 		try:
 			shutil.copy(anc_seqs_filename, os.path.join(args.output, "ancestral_inference_logging"))
+			shutil.copy(node_map_filename, os.path.join(args.output, "ancestral_inference_logging"))
 		except:
 			print("Could not copy ancestral sequence inference result file to logging directory.")
 	eps = parse_ep_outputs(temp_basename, tree, site_labels)
