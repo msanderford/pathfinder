@@ -396,9 +396,12 @@ def parse_ep_outputs(basename, tree, tumor_site_map):
 def clear_ep_files(basename):
 	os.remove("{}eps.nwk".format(basename))
 	os.remove("{}eps.csv".format(basename))
-	os.remove("{}eps_avg_blens.csv".format(basename))
-	os.remove("{}eps_data_coverage.csv".format(basename))
-	os.remove("{}eps_ML_data.csv".format(basename))
+	try:
+		os.remove("{}eps_avg_blens.csv".format(basename))
+		os.remove("{}eps_data_coverage.csv".format(basename))
+		os.remove("{}eps_ML_data.csv".format(basename))
+	except:
+		pass
 	os.remove("{}eps_nodeMap.txt".format(basename))
 	os.remove("{}eps_summary.txt".format(basename))
 
