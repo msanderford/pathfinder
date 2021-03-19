@@ -126,14 +126,16 @@ def parse_clone_freqs(file_name):
 					tumor = args.primary
 				if len(aa_label_list) < 1:
 					raise Exception("More than the maximum number of tumor sites (19) specified")
-				tumor_label_dict[aa_label_list[0]] = tumor
-				rev_tumor_label_dict[tumor] = aa_label_list[0]
-				aa_label_list.remove(aa_label_list[0])
+				if tumor not in tumor_label_dict.values():
+					tumor_label_dict[aa_label_list[0]] = tumor
+					rev_tumor_label_dict[tumor] = aa_label_list[0]
+					aa_label_list.remove(aa_label_list[0])
 				freqs = data[1:]
 				for i in range(len(freqs)):
 					if float(freqs[i]) == 0.0:
 						pass
 					else:
+						# Note this currently erases all but the last non-zero frequency for a tumor/clone
 						clones[clone_list[i]].update({tumor: freqs[i]})
 	return clones
 
@@ -1045,7 +1047,7 @@ for pmt_tree in permuted_trees:
 				if len([val for val in eps[key].values() if val >= max_ep]) == 1:
 					selected = [val for val in eps[key].keys() if eps[key][val] >= max_ep][0]
 					tumor_membership[key][selected] = max_ep
-					print("No tumors exceed probability threshold {} for node {}, found exactly one tumor {} with maximum probability {}, selecting it.".format(tumor_membership_cutoff, key, selected, max_ep))
+					print("No sites exceed probability threshold {} for node {}, found exactly one site {} with maximum probability {}, selecting it.".format(tumor_membership_cutoff, key, selected, max_ep))
 					bad_result = False
 		if "Normal" in tumor_membership[key].keys():
 			if tryto_fix_anc_seq_inference:
