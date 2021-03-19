@@ -43,6 +43,7 @@ outgroup_file = "outgroup.txt"
 print_megacc_cmd = False
 tryto_fix_anc_seq_inference = True
 fix_0length_issues = True
+# relax_node_threshold = True  # If node has no AA with probability >threshold, fall back to selecting single AA with the highest probability if it exists
 
 aa_label_list = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
 tumor_label_dict = {'A': 'Normal'}
@@ -68,6 +69,7 @@ parser.add_argument("--acc_by_edge_type", help="Break accuracy counts into P->M,
 parser.add_argument("-t", "--true_paths", help="List of true migration paths.", type=str, default=None)
 parser.add_argument("-o", "--output", help="Output directory to put results in.", type=str, default=".")
 parser.add_argument("--log_ancestral_inference", help="Keep inputs/outputs of MEGA ancestral sequence inference calculations for debugging purposes.", action='store_true', default=False)
+parser.add_argument("--relax_threshold", help="If a node has no tumor with probability>threshold, fall back to selecting the single tumor with the highest probability, when such a tumor exists.", action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -1038,6 +1040,13 @@ for pmt_tree in permuted_trees:
 			min_max_ep = min(min_max_ep, max(eps[key].values()))
 			bad_result = True
 			# break
+			if args.relax_threshold:
+				max_ep = max(eps[key].values())
+				if len([val for val in eps[key].values() if val >= max_ep]) == 1:
+					selected = [val for val in eps[key].keys() if eps[key][val] >= max_ep][0]
+					tumor_membership[key][selected] = max_ep
+					print("No tumors exceed probability threshold {} for node {}, found exactly one tumor {} with maximum probability {}, selecting it.".format(tumor_membership_cutoff, key, selected, max_ep))
+					bad_result = False
 		if "Normal" in tumor_membership[key].keys():
 			if tryto_fix_anc_seq_inference:
 				tumor_membership[key] = fix_anc_seq_inference(pmt_tree, tumor_membership, key)
