@@ -33,8 +33,8 @@ from tree_permute import permute_unique_trees
 # calculate accuracy
 # generate outputs
 
-#megacc_app = "megacc_200422.exe"
-megacc_app = "megacc.exe"
+megacc_app = "megacc_200422.exe"
+#megacc_app = "megacc.exe"
 mp_tree_infer_mao = "infer_NJ_amino_acid.mao"
 ancestral_seqs_mao = "ancestral_seqs_ML_protein.mao"
 outgroup_file = "outgroup.txt"
