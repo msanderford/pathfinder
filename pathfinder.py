@@ -1044,12 +1044,24 @@ for pmt_tree in permuted_trees:
 			bad_result = True
 			# break
 			if args.relax_threshold:
-				max_ep = max(eps[key].values())
-				if len([val for val in eps[key].values() if val >= max_ep]) == 1:
-					selected = [val for val in eps[key].keys() if eps[key][val] >= max_ep][0]
-					tumor_membership[key][selected] = max_ep
-					print("No sites exceed probability threshold {} for node {}, found exactly one site {} with maximum probability {}, selecting it.".format(tumor_membership_cutoff, key, selected, max_ep))
-					bad_result = False
+				multi_select = True
+				max_select = not multi_select
+				if max_select:
+					max_ep = max(eps[key].values())
+					if len([val for val in eps[key].values() if val >= max_ep]) == 1:
+						selected = [val for val in eps[key].keys() if eps[key][val] >= max_ep][0]
+						tumor_membership[key][selected] = max_ep
+						print("No sites exceed probability threshold {} for node {}, found exactly one site {} with maximum probability {}, selecting it.".format(tumor_membership_cutoff, key, selected, max_ep))
+						bad_result = False
+				if multi_select:
+					max_ep = max(eps[key].values())
+					if len([val for val in eps[key].values() if val > 0.05]) <= 19 - len(aa_label_list):
+						selected = [val for val in eps[key].keys() if eps[key][val] > 0.05]
+						total_prob = sum([eps[key][val] for val in selected])
+						for val in selected:
+							tumor_membership[key][val] = eps[key][val] / total_prob
+						print("No sites exceed probability threshold {} for node {}, found {} sites with probability greater than 0.05, selecting them and normalizing probability.".format(tumor_membership_cutoff, key, len(selected)))
+						bad_result = False
 		if "Normal" in tumor_membership[key].keys():
 			if tryto_fix_anc_seq_inference:
 				tumor_membership[key] = fix_anc_seq_inference(pmt_tree, tumor_membership, key)
