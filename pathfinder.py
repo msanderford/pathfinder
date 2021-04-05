@@ -892,10 +892,11 @@ def fix_anc_seq_inference(tree, tumor_map, node):
 		node_name = node.name
 	except:
 		node_name = node
-	try:
-		distance = tree.distance(parent.name, node)
-	except:
-		distance = tree.distance(parent, node)
+	if parent is not None:
+		try:
+			distance = tree.distance(parent.name, node)
+		except:
+			distance = tree.distance(parent, node)
 	if parent is None or distance > 0.0:
 		if "Normal" in tumor_map[node_name].keys():
 			return None
