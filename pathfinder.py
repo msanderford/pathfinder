@@ -732,7 +732,7 @@ def split_mt_leaves(tree, clones, basename, mut_seqs=None): # Split multi-tumor 
 				tumor_seqs[clone] = rev_tumor_label_dict[next(iter(clones[clone].keys()))]
 			elif len(clones[clone].keys()) >= 1:
 				nodes = lookup_by_names(tree)
-				tumor_list = clones[clone].keys()
+				tumor_list = list(clones[clone].keys())
 				nodes[clone].name = "{}:{}".format(clone, tumor_list[0])
 				tumor_seqs["{}:{}".format(clone, tumor_list[0])] = rev_tumor_label_dict[tumor_list[0]]
 				if mut_seqs is not None:
@@ -1295,7 +1295,7 @@ if read_true_paths:
 		all_edges.add(edge)
 	new_graph = make_proto_graph(all_edges)
 	edge_probabilities = composite_weighted_edges
-	temp_edge_list = composite_weighted_edges.keys()
+	temp_edge_list = list(composite_weighted_edges.keys())
 	with open(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))[0] + "_Mig.txt"), 'w') as avg_mig_file:
 		if dump_edges: edges_file = open(edge_dump_file,'a+')
 		dataname = os.path.splitext(os.path.basename(args.aln))[0]
