@@ -2,6 +2,8 @@
 *
 
 # But not these files...
+!*/
+!Example_data/**
 !.gitignore
 !README.txt
 !ancestral_seqs_ML_protein.mao
@@ -12,4 +14,3 @@
 !outgroup.txt
 !pathfinder.py
 !tree_permute.py
-!/Example_data/
