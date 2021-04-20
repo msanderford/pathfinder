@@ -19,7 +19,7 @@ from Bio import Phylo
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
-from cStringIO import StringIO
+from io import StringIO
 from tree_permute import permute_unique_trees
 
 # read aln
@@ -34,7 +34,8 @@ from tree_permute import permute_unique_trees
 # generate outputs
 
 #megacc_app = "megacc_200422.exe"
-megacc_app = "megacc.exe"
+#megacc_app = "megacc.exe"
+megacc_app = "megacc_11210415.exe"
 mp_tree_infer_mao = "infer_NJ_amino_acid.mao"
 ancestral_seqs_mao = "ancestral_seqs_ML_protein.mao"
 outgroup_file = "outgroup.txt"
@@ -70,6 +71,7 @@ parser.add_argument("-t", "--true_paths", help="List of true migration paths.", 
 parser.add_argument("-o", "--output", help="Output directory to put results in.", type=str, default=".")
 parser.add_argument("--log_ancestral_inference", help="Keep inputs/outputs of MEGA ancestral sequence inference calculations for debugging purposes.", action='store_true', default=False)
 parser.add_argument("--relax_threshold", help="If a node has no tumor with probability>threshold, fall back to selecting the single tumor with the highest probability, when such a tumor exists.", action='store_true', default=False)
+parser.add_argument("--use_select_weighted_outputs", help="Make final ancestral seqs probability weighted edge list from outputs with minimized count-based selection.", action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -213,9 +215,9 @@ def parse_input_aln(aln_file_in, aln_file_out):
 		if 'Normal' not in seqs.keys():
 			if args.default_normal_char == None:
 				raise Exception("No Normal sequence found, Normal must be specified, or a default Normal sequence character must be specified with --default_normal_char option.")
-			print("No Normal sequence found, using user specified default char {} * {}".format(args.default_normal_char,len(seqs.values()[0])))
-			seqs['Normal'] = 'A' * len(seqs.values()[0])
-		seq_len = len(seqs[seqs.keys()[0]])
+			print("No Normal sequence found, using user specified default char {} * {}".format(args.default_normal_char,len(next(iter(seqs.values())))))
+			seqs['Normal'] = 'A' * len(next(iter(seqs.values())))
+		seq_len = len(seqs[next(iter(seqs.keys()))])
 		target_seq_len = 3
 		repeat_count = int(math.ceil(float(target_seq_len) / float(seq_len)))
 		primary = ""
@@ -305,7 +307,7 @@ def infer_mp_tree(mega_aln_filename):
 	if return_code != 0:
 		raise ValueError('MEGACC returned error code', return_code)
 	trees = Phylo.parse(tree_filename, 'newick')
-	tree = Phylo.BaseTree.Tree.from_clade(trees.next().clade)
+	tree = Phylo.BaseTree.Tree.from_clade(trees.__next__().clade)
 	tree.root_with_outgroup({'name': 'Normal'})
 	anc_id = 0
 	clade_count = 0
@@ -539,12 +541,13 @@ def reverse_edge(edge_in):
 def generate_edge_list(static_tree, tumor_map):
 	tree = copy.deepcopy(static_tree)
 	temp_digraph = tree_to_digraph(tree, "Normal")
-	temp_edge_list = sorted(temp_digraph.get_edge_list())
+	temp_edge_list = temp_digraph.get_edge_list()
+	temp_edge_list.sort(key=lambda tup: str(tup))
 	temp_migration_edges = []
 	temp_migration_edge_probabilities = []
 
 	# Group nodes into polytomies
-	ungrouped_nodes = tumor_map.keys()
+	ungrouped_nodes = list(tumor_map.keys())
 	grouped_nodes = {}
 	node_groups = {}
 	while len(ungrouped_nodes) > 0:
@@ -564,13 +567,13 @@ def generate_edge_list(static_tree, tumor_map):
 	for edge in temp_edge_list:
 		src_node = tumor_map[edge.get_source()]
 		dst_node = tumor_map[edge.get_destination()]
-		if 'Normal' in [x.keys()[0] for x in [src_node, dst_node]]: continue
+		if 'Normal' in [next(iter(x.keys())) for x in [src_node, dst_node]]: continue
 		#migration_edge = "{}->{}".format(src_node.keys()[0], dst_node.keys()[0])
-		if src_node.keys()[0] != dst_node.keys()[0]:
-			temp_migration_edges.append("{}->{}".format(src_node.keys()[0], dst_node.keys()[0]))
-			temp_migration_edge_probabilities.append(src_node.values()[0] * dst_node.values()[0])
+		if next(iter(src_node.keys())) != next(iter(dst_node.keys())):
+			temp_migration_edges.append("{}->{}".format(next(iter(src_node.keys())), next(iter(dst_node.keys()))))
+			temp_migration_edge_probabilities.append(next(iter(src_node.values())) * next(iter(dst_node.values())))
 			temp_node_edges.append((node_groups[edge.get_source()], node_groups[edge.get_destination()], static_tree.distance(edge.get_source(), edge.get_destination())))
-	temp_edge_list = zip(temp_migration_edges, temp_migration_edge_probabilities)
+	temp_edge_list = list(zip(temp_migration_edges, temp_migration_edge_probabilities))
 
 	# If a 0-length edge contained in a polytomy duplicates or reverses another edge attached to that polytomy, the 0-length edge should be dropped
 	i = 0
@@ -607,7 +610,7 @@ def generate_edge_list(static_tree, tumor_map):
 		path_counts = {}
 		path = get_gv_path(temp_digraph, terminal, "Normal")
 		for edge in path:
-			mig_edge = (tumor_map[edge[0]].keys()[0], tumor_map[edge[1]].keys()[0])
+			mig_edge = (next(iter(tumor_map[edge[0]].keys())), next(iter(tumor_map[edge[1]].keys())))
 			if mig_edge[0] != mig_edge[1]:
 				path_counts[mig_edge] = path_counts.get(mig_edge, 0) + 1
 		for key in path_counts.keys():
@@ -726,7 +729,7 @@ def split_mt_leaves(tree, clones, basename, mut_seqs=None): # Split multi-tumor 
 		file.write("!Format datatype=Protein;\n")
 		for clone in clones.keys():
 			if len(clones[clone].keys()) == 1:
-				tumor_seqs[clone] = rev_tumor_label_dict[clones[clone].keys()[0]]
+				tumor_seqs[clone] = rev_tumor_label_dict[next(iter(clones[clone].keys()))]
 			elif len(clones[clone].keys()) >= 1:
 				nodes = lookup_by_names(tree)
 				tumor_list = clones[clone].keys()
@@ -907,7 +910,7 @@ def fix_anc_seq_inference(tree, tumor_map, node):
 
 
 def get_top_ptmy_node(tree, node):
-	if not isinstance(node, types.StringType):
+	if not isinstance(node, str):
 		node = node.name
 	parent = get_parent(tree, node)
 	if parent is None:
@@ -960,7 +963,7 @@ class PermutedMembership:
 		idx_val = idx
 		for anchor_node in self.group_anchors:
 			tumor_idx = idx_val % self.anchor_membership_sizes[anchor_node]
-			idx_val = (idx_val - tumor_idx)/self.anchor_membership_sizes[anchor_node]
+			idx_val = int((idx_val - tumor_idx)/self.anchor_membership_sizes[anchor_node])
 			tumor = self.anchor_membership[anchor_node][tumor_idx]
 			new_tumor_map = (new_tumor_map[0], new_tumor_map[1] * self.membership[anchor_node][tumor])
 			for ptmy_node in self.groups[anchor_node]:
@@ -1096,7 +1099,7 @@ for pmt_tree in permuted_trees:
 		for node in node_group:
 			ungrouped_nodes.remove(node)
 		top_node = get_top_ptmy_node(pmt_tree, key_node)
-		if not isinstance(top_node, types.StringType):
+		if not isinstance(top_node, str):
 			top_node = top_node.name
 		grouped_nodes[top_node] = node_group
 	node_membership_permutation_count = 1
@@ -1150,10 +1153,10 @@ for pmt_tree in permuted_trees:
 		edge_lists_probabilities.append(edge_list_probabilities)
 		migration_counts.append(counts)
 	trees_processed += 1.0
-	temp_sorted = sorted(zip(tumor_map_list, edge_lists, edge_lists_probabilities, migration_counts),
+	temp_sorted = sorted(list(zip(tumor_map_list, edge_lists, edge_lists_probabilities, migration_counts)),
 						 key=lambda row: row[2], reverse=True)
-	tumor_map_list, edge_lists, edge_lists_probabilities, migration_counts = zip(*temp_sorted)
-	data_by_tree[pmt_tree] = (tumor_membership, zip([x[1] for x in tumor_map_list], [x[0] for x in tumor_map_list], edge_lists, migration_counts))
+	tumor_map_list, edge_lists, edge_lists_probabilities, migration_counts = list(zip(*temp_sorted))
+	data_by_tree[pmt_tree] = (tumor_membership, list(zip([x[1] for x in tumor_map_list], [x[0] for x in tumor_map_list], edge_lists, migration_counts)))
 
 print("Finished processing graphs, generating outputs...")
 
@@ -1168,6 +1171,7 @@ key_trees = list(data_by_tree.keys())
 
 tree_idx = 0
 drawn_graphs = set()
+
 for tree in key_trees:
 	tree_idx += 1
 	if args.draw_all_outputs:
@@ -1190,7 +1194,7 @@ for tree in key_trees:
 					seeding_graph.write(os.path.join(scratch_dir, os.path.splitext(os.path.basename(args.aln))[0] + "_{}_{}_migration.png".format(tree_idx, anc_states_idx)))
 					print("Warning: 'dot.exe' not found in path, migration paths graphic not generated, see README file...")
 				else:
-					raise stuff[0], stuff[1], stuff[2]
+					raise (stuff[0], stuff[1], stuff[2])
 	Phylo.write(tree, os.path.join(scratch_dir, os.path.splitext(os.path.basename(args.aln))[0] + "_tree_{}.nwk".format(tree_idx)), 'newick')
 
 composite_weighted_edges = {}
@@ -1240,21 +1244,27 @@ with open(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))
 		comig_min = min([x[4] for x in flat_results if x[3] == mig_min])
 		src_min = min([x[5] for x in flat_results if x[3] == mig_min and x[4] == comig_min])
 		prob_max = max([x[2] for x in flat_results if x[3] == mig_min and x[4] == comig_min and x[5] == src_min])
-		picked_results = [x for x in flat_results if x[3] == mig_min and x[4] == comig_min and x[5] == src_min and x[2] == prob_max]
-
-		print("Total result sets: {}".format(len(flat_results)))
 		print("Minimum migration count:{}   Results with minimum migration count: {}".format(mig_min, len([x[4] for x in flat_results if x[3] == mig_min])))
 		print("Minimum comigration count:{}   Results with minimum comigration count: {}".format(comig_min, len([x[5] for x in flat_results if x[3] == mig_min and x[4] == comig_min])))
 		print("Minimum source count:{}   Results with minimum source count: {}".format(src_min, len([x[2] for x in flat_results if x[3] == mig_min and x[4] == comig_min and x[5] == src_min])))
 		print("Average probability of filtered result sets:{}".format(float(sum([x[2] for x in flat_results if x[3] == mig_min and x[4] == comig_min and x[5] == src_min]))/len([x[2] for x in flat_results if x[3] == mig_min and x[4] == comig_min and x[5] == src_min])))
-		print("Maximum probability of filtered result sets:{}   Results with maximum probability:{}".format(prob_max, len(picked_results)))
-
-		for result in picked_results:
-			for edge in result[6]:
-				composite_weighted_edges[edge] = composite_weighted_edges.get(edge, 0.0) + 1.0
-
-		for edge in composite_weighted_edges.keys():
-			composite_weighted_edges[edge] = composite_weighted_edges[edge] / len(picked_results)
+		if args.use_select_weighted_outputs:
+			picked_results = [x for x in flat_results if x[3] == mig_min and x[4] == comig_min and x[5] == src_min]
+			temp_total_prob = 0
+			for result in picked_results:
+				temp_total_prob += result[2]
+				for edge in result[6]:
+					composite_weighted_edges[edge] = composite_weighted_edges.get(edge, 0.0) + result[2]
+			for edge in composite_weighted_edges.keys():
+				composite_weighted_edges[edge] = composite_weighted_edges[edge] / temp_total_prob
+		else:
+			picked_results = [x for x in flat_results if x[3] == mig_min and x[4] == comig_min and x[5] == src_min and x[2] == prob_max]
+			print("Maximum probability of filtered result sets:{}   Results with maximum probability:{}".format(prob_max, len(picked_results)))
+			for result in picked_results:
+				for edge in result[6]:
+					composite_weighted_edges[edge] = composite_weighted_edges.get(edge, 0.0) + 1.0
+			for edge in composite_weighted_edges.keys():
+				composite_weighted_edges[edge] = composite_weighted_edges[edge] / len(picked_results)
 
 edge_list = sorted(composite_weighted_edges.keys())
 
@@ -1274,7 +1284,7 @@ except OSError:
 		seeding_graph.write(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))[0] + "_migration.dot"))
 		print("Warning: 'dot.exe' not found in path, migration paths graphic not generated, see README file...")
 	else:
-		raise stuff[0], stuff[1], stuff[2]
+		raise (stuff[0], stuff[1], stuff[2])
 
 if read_true_paths:
 	accuracy_list = []
@@ -1338,7 +1348,7 @@ if read_true_paths:
 				os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))[0] + "_migration.dot"))
 			print("Warning: 'dot.exe' not found in path, migration paths graphic not generated, see README file...")
 		else:
-			raise stuff[0], stuff[1], stuff[2]
+			raise (stuff[0], stuff[1], stuff[2])
 
 	avg_acc_counts = analyze_edge_list(true_paths, [x for x in composite_weighted_edges.keys() if composite_weighted_edges[x] >= avg_edge_weight_cutoff])
 	print("{}\t{}".format(os.path.splitext(os.path.basename(args.aln))[0], '\t'.join([str(avg_acc_counts[x]) for x in count_keys])))

@@ -18,15 +18,15 @@ def split_list_recursive(leaves):
 
 
 def apply_labels(tree, labels):
-	if isinstance(tree, types.StringType):
+	if isinstance(tree, str):
 		return labels[tree]
 	return (apply_labels(tree[0], labels), apply_labels(tree[1], labels))
 
 
 def trees_are_equal(tree_l, tree_r):
-	if isinstance(tree_l, types.StringType) != isinstance(tree_r, types.StringType):
+	if isinstance(tree_l, str) != isinstance(tree_r, str):
 		return False
-	if isinstance(tree_l, types.StringType) and isinstance(tree_r, types.StringType):
+	if isinstance(tree_l, str) and isinstance(tree_r, str):
 		if tree_l == tree_r:
 			return True
 		else:
