@@ -1053,6 +1053,10 @@ for pmt_tree in permuted_trees:
 					max_ep = max(eps[key].values())
 					if len([val for val in eps[key].values() if val >= max_ep]) == 1:
 						selected = [val for val in eps[key].keys() if eps[key][val] >= max_ep][0]
+						if len(selected) == 0:
+							print("Warning: tree permutation yields invalid ancestral sequence inference results, skipping...")
+							bad_result = True
+							break
 						tumor_membership[key][selected] = max_ep
 						print("No sites exceed probability threshold {} for node {}, found exactly one site {} with maximum probability {}, selecting it.".format(tumor_membership_cutoff, key, selected, max_ep))
 						bad_result = False
@@ -1060,6 +1064,12 @@ for pmt_tree in permuted_trees:
 					min_ep = min(eps[key].values())
 					if len([val for val in eps[key].values() if val > min_ep]) <= 19 - len(aa_label_list):
 						selected = [val for val in eps[key].keys() if eps[key][val] > min_ep]
+						if len(selected) == 0:
+							print("No sites exceed probability threshold {} for node {}, found {} sites with probability greater than minimum value({}).".format(
+									tumor_membership_cutoff, key, len(selected), min_ep))
+							print("Warning: tree permutation yields invalid ancestral sequence inference results, skipping...")
+							bad_result = True
+							break
 						total_prob = sum([eps[key][val] for val in selected])
 						for val in selected:
 							tumor_membership[key][val] = eps[key][val] / total_prob
@@ -1165,7 +1175,7 @@ if len(data_by_tree) == 0:
 	for tree in permuted_trees:
 		tree_idx += 1
 		Phylo.write(tree, os.path.join(scratch_dir, os.path.splitext(os.path.basename(args.aln))[0] + "_tree_{}.nwk".format(tree_idx)), 'newick')
-	raise Exception("None of the tree permutations sampled produced usable output, try lowering anc_tumor_threshold({}).".format(tumor_membership_cutoff))
+	raise Exception("None of the tree permutations sampled produced usable output, try lowering anc_tumor_threshold({}), or enabling --relax_threshold option.".format(tumor_membership_cutoff))
 
 key_trees = list(data_by_tree.keys())
 
