@@ -1,5 +1,5 @@
 PathFinder_v2.0
-Updated June 29, 2020
+Updated May 3, 2021
 ======================
 
 PathFinder is a method that infers cell migration routes accurately by using principles of Bayesian molecular phylogenetics in cancer cell genomes.
@@ -9,7 +9,7 @@ Installation
 ======================
 PathFinder is a python script developed in a Windows 64-bit architecture, and does not need to be compiled prior to usage. To use PathFinder, the following python packages need to be installed.
 
-	Python 2
+	Python 3
 	matplotlib
 	pydot
 	graphviz
@@ -68,6 +68,8 @@ Optional arguments:
 		Default: 30
 	--use_all_weighted_outputs
 		Make final weighted edge list migration graph using all outputs of all sampled permutations, instead of using hierarchical migration-count based selection.
+	--use_select_weighted_outputs
+		Make final weighted edge list using only outputs with minimized count-based selection, weighted by each output's composite ancestral sequences probability.
 	--draw_all_outputs
 		Generate migration graph and phylogeny images for all sampled permutations/configurations.
 	--phy_scale_x
@@ -76,6 +78,10 @@ Optional arguments:
 		Vertical scaling factor for tree image outputs.
 	--acc_by_edge_type
 		Subset accuracy counts into P->M, M->M, M->P.
+	--relax_threshold
+		If a node has no site with probability>threshold, fall back to selecting the most likely site(s).
+	--log_ancestral_inference
+		Save inputs/outputs of MEGA-CC ancestral sequence inference calculations for debugging purposes.
 
 
 Example
