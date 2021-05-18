@@ -72,6 +72,7 @@ parser.add_argument("-o", "--output", help="Output directory to put results in."
 parser.add_argument("--log_ancestral_inference", help="Keep inputs/outputs of MEGA ancestral sequence inference calculations for debugging purposes.", action='store_true', default=False)
 parser.add_argument("--relax_threshold", help="If a node has no site with probability>threshold, fall back to selecting the most likely site(s).", action='store_true', default=False)
 parser.add_argument("--use_select_weighted_outputs", help="Make final ancestral seqs probability weighted edge list from outputs with minimized count-based selection.", action='store_true', default=False)
+parser.add_argument("--keep_ambiguous_results", help="Treat nodes with fully ambiguous inferences as belonging equally to all sites, instead of discarding the ancestral inference result.", action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -1064,7 +1065,7 @@ for pmt_tree in permuted_trees:
 					min_ep = min(eps[key].values())
 					if len([val for val in eps[key].values() if val > min_ep]) <= 19 - len(aa_label_list):
 						selected = [val for val in eps[key].keys() if eps[key][val] > min_ep]
-						if len(selected) == 0:
+						if len(selected) == 0 and args.keep_ambiguous_results:
 							selected = [val for val in tumor_label_dict.values() if val != "Normal"]
 						if len(selected) == 0:
 							print("No sites exceed probability threshold {} for node {}, found {} sites with probability greater than minimum value({}).".format(
