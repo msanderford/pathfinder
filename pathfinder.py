@@ -301,7 +301,7 @@ def pre_cleanup(mega_aln_filename):
 def infer_mp_tree(mega_aln_filename):
 	base_filename = os.path.splitext(os.path.basename(mega_aln_filename))[0]
 	tree_filename = os.path.join(scratch_dir, base_filename + ".nwk")
-	megacc_cmd = "{} -a {} -d {} --keep-tree-blens -o {}".format(megacc_app, mp_tree_infer_mao, mega_aln_filename, tree_filename)
+	megacc_cmd = "{} -a {} -d {} -o {}".format(megacc_app, mp_tree_infer_mao, mega_aln_filename, tree_filename)
 	if print_megacc_cmd: print(megacc_cmd)
 	FNULL = open(os.devnull, 'w')
 	return_code = subprocess.call(megacc_cmd, stdout=FNULL, stderr=subprocess.STDOUT)
@@ -421,7 +421,7 @@ def get_eps(tree, aln_filename, site_labels):
 	Phylo.write(temp_tree, tree_filename, 'newick')
 	anc_seqs_filename = "{}eps.csv".format(temp_basename)
 	node_map_filename = "{}eps_nodeMap.txt".format(temp_basename)
-	megacc_cmd = "{} -a {} -d {} -t {} -o {} -g {}".format(megacc_app, ancestral_seqs_mao, aln_filename, tree_filename, anc_seqs_filename, outgroup_file)
+	megacc_cmd = "{} -a {} -d {} -t {} --keep-tree-blens -o {} -g {}".format(megacc_app, ancestral_seqs_mao, aln_filename, tree_filename, anc_seqs_filename, outgroup_file)
 	if print_megacc_cmd: print(megacc_cmd)
 	if mega_io_logging:
 		shutil.copy(aln_filename, os.path.join(args.output, "ancestral_inference_logging", "temp_{}_".format(temp_id) + os.path.basename(aln_filename)))
