@@ -301,7 +301,7 @@ def pre_cleanup(mega_aln_filename):
 def infer_mp_tree(mega_aln_filename):
 	base_filename = os.path.splitext(os.path.basename(mega_aln_filename))[0]
 	tree_filename = os.path.join(scratch_dir, base_filename + ".nwk")
-	megacc_cmd = "{} -a {} -d {} -o {}".format(megacc_app, mp_tree_infer_mao, mega_aln_filename, tree_filename)
+	megacc_cmd = "{} -a {} -d {} --keep-tree-blens -o {}".format(megacc_app, mp_tree_infer_mao, mega_aln_filename, tree_filename)
 	if print_megacc_cmd: print(megacc_cmd)
 	FNULL = open(os.devnull, 'w')
 	return_code = subprocess.call(megacc_cmd, stdout=FNULL, stderr=subprocess.STDOUT)
