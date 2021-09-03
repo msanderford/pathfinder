@@ -65,7 +65,8 @@ def permute_unique_trees(leaf_names, max_samples=None):
 	i = 0
 	for labeling in labeling_generator:
 		if i in labeling_idxs:
-			labelings.append(label)
+			labelings.append(labeling)
+			i += 1
 	# labelings = list(itertools.permutations(leaf_names))
 	# print("Topology count: {}\nLabeling count: {}".format(len(topologies), len(labelings)))
 	if max_samples is None or max_samples > len(topologies) * len(labelings):
