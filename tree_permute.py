@@ -3,6 +3,7 @@ import itertools
 import types
 import datetime
 import random
+import copy
 
 
 def split_list_recursive(leaves):
@@ -59,15 +60,16 @@ def permute_unique_trees(leaf_names, max_samples=None):
 	leaf_ids = ["leaf_{}".format(i) for i in range(len(leaf_names))]
 	trees = []
 	topologies = split_list_recursive(leaf_ids)
-	labeling_generator = itertools.permutations(leaf_names)
-	labeling_idxs = random.sample(range(0, math.factorial(len(leaf_names))), max_samples)
-	labelings = []
-	i = 0
-	for labeling in labeling_generator:
-		if i in labeling_idxs:
-			labelings.append(labeling)
-			i += 1
-	# labelings = list(itertools.permutations(leaf_names))
+	if math.factorial(len(leaf_names)) >= 10 * max_samples:
+		labelings = []
+		while len(labelings) < max_samples:
+			random.shuffle(leaf_names)
+			new_labeling = tuple(copy.deepcopy(leaf_names))
+			if new_labeling not in labelings:
+				labelings.append(new_labeling)
+		labelings = [list(labeling) for labeling in labelings]
+	else:
+		labelings = list(itertools.permutations(leaf_names))
 	# print("Topology count: {}\nLabeling count: {}".format(len(topologies), len(labelings)))
 	if max_samples is None or max_samples > len(topologies) * len(labelings):
 		for topology in topologies:
