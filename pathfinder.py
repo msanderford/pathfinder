@@ -465,21 +465,20 @@ def tree_to_digraph(tree, start_node = 'Normal'):
 		new_node_list = []
 		for edge in new_pydot_graph.get_edge_list():
 			if edge.get_destination() in node_list:
-				new_edge_list.append((edge.get_destination(), edge.get_source()))
+				new_edge_list.append((edge.get_destination(), edge.get_source(), edge.obj_dict['attributes']['weight']))
 				new_node_list.append(edge.get_source())
 				new_pydot_graph.del_edge(edge.get_source(), edge.get_destination())
 			if edge.get_source() in node_list:
-				new_edge_list.append((edge.get_source(), edge.get_destination()))
+				new_edge_list.append((edge.get_source(), edge.get_destination(), edge.obj_dict['attributes']['weight']))
 				new_node_list.append(edge.get_destination())
 				new_pydot_graph.del_edge(edge.get_source(), edge.get_destination())
 		node_list = set(new_node_list)
 	new_edge_list = set(new_edge_list)
-
 	# Generate directed graph
 	new_pydot_digraph = pydot.Dot(graph_type='digraph')
 	for edge in new_edge_list:
-		new_pydot_digraph.add_edge(pydot.Edge(edge[0], edge[1]))
-
+		new_pydot_digraph.add_edge(pydot.Edge(edge[0], edge[1], length=edge[2]))
+		#new_pydot_digraph.add_edge(pydot.Edge(edge[0], edge[1]))
 	return new_pydot_digraph
 
 def draw_tumor_map(static_tree, map_tuple, filename, timed_tree):
@@ -546,6 +545,7 @@ def generate_edge_list(static_tree, tumor_map):
 	temp_edge_list.sort(key=lambda tup: str(tup))
 	temp_migration_edges = []
 	temp_migration_edge_probabilities = []
+	temp_migration_edge_lens = []
 
 	# Group nodes into polytomies
 	ungrouped_nodes = list(tumor_map.keys())
@@ -573,8 +573,9 @@ def generate_edge_list(static_tree, tumor_map):
 		if next(iter(src_node.keys())) != next(iter(dst_node.keys())):
 			temp_migration_edges.append("{}->{}".format(next(iter(src_node.keys())), next(iter(dst_node.keys()))))
 			temp_migration_edge_probabilities.append(next(iter(src_node.values())) * next(iter(dst_node.values())))
+			temp_migration_edge_lens.append(edge.obj_dict["attributes"]["length"])
 			temp_node_edges.append((node_groups[edge.get_source()], node_groups[edge.get_destination()], static_tree.distance(edge.get_source(), edge.get_destination())))
-	temp_edge_list = list(zip(temp_migration_edges, temp_migration_edge_probabilities))
+	temp_edge_list = list(zip(temp_migration_edges, temp_migration_edge_probabilities, temp_migration_edge_lens))
 
 	# If a 0-length edge contained in a polytomy duplicates or reverses another edge attached to that polytomy, the 0-length edge should be dropped
 	i = 0
@@ -598,11 +599,13 @@ def generate_edge_list(static_tree, tumor_map):
 	temp_edge_list.sort(key=lambda tup: tup[1], reverse=True)
 	temp_migration_edges = []
 	temp_migration_edge_probabilities = []
+	temp_migration_edge_lens = []
 	for edge in temp_edge_list:
 		j = 1
 		while "{}[{}]".format(edge[0], j) in temp_migration_edges: j += 1
 		temp_migration_edges.append("{}[{}]".format(edge[0], j))
 		temp_migration_edge_probabilities.append(edge[1])
+		temp_migration_edge_lens.append(float(edge[2]))
 
 	# Count comigrations
 	terminals = get_gv_terminals(temp_digraph)
@@ -618,7 +621,7 @@ def generate_edge_list(static_tree, tumor_map):
 			mig_edge_counts[key] = max(mig_edge_counts.get(key, 0), path_counts[key])
 	comigration_count = sum(mig_edge_counts.values())
 
-	return temp_migration_edges, temp_migration_edge_probabilities, [comigration_count, mig_count1, mig_count2, source_count1, source_count2]
+	return temp_migration_edges, temp_migration_edge_probabilities, temp_migration_edge_lens, [comigration_count, mig_count1, mig_count2, source_count1, source_count2]
 
 def analyze_edge_list(true_paths, edge_list):
 	temp_true_paths = copy.deepcopy(true_paths)
@@ -641,7 +644,7 @@ def analyze_edge_list(true_paths, edge_list):
 		counts["FN{}".format(edge_type)] += 1
 	return counts
 
-def make_pydot_seeding_graph(edges, probabilities):
+def make_pydot_seeding_graph(edges, probabilities, lens):
 	tumors = set()
 	for edge in edges:
 		tumors.add(edge.split('[')[0].split('->')[0])
@@ -652,14 +655,14 @@ def make_pydot_seeding_graph(edges, probabilities):
 	for tumor in tumors:
 		if tumor == args.primary: continue
 		new_graph.add_node(pydot.Node(name=tumor))
-	for record in zip(edges, probabilities):
+	for record in zip(edges, probabilities, lens):
 		edge = record[0]
 		edge_color = 'grey'
-		edge_label = ''
+		edge_label = "{}".format(round(record[2], 4))
 		if record[1] == '-':
 			edge_color = 'black'
 		else:
-			edge_label = round(record[1], 2)
+			edge_label = "{}\n({})".format(round(record[1], 2), round(record[2], 4))
 			if record[1] > args.mig_event_threshold:
 				edge_color = 'black'
 		new_graph.add_edge(pydot.Edge(edge.split('[')[0].split('->')[0], edge.split('[')[0].split('->')[1], label=edge_label, color=edge_color))
@@ -972,6 +975,24 @@ class PermutedMembership:
 		return new_tumor_map
 
 
+def derive_mut_scale(tree, seqs):
+	keys = list(seqs.keys())
+	random.shuffle(keys)
+	counter = 0
+	samples = []
+	while len(keys) >= 2 and counter < 10:
+		distance = 0.0
+		counter += 1
+		key1 = keys.pop(0)
+		key2 = keys.pop(0)
+		for position in zip(seqs[key1], seqs[key2]):
+			if position[0].upper() != position[1].upper():
+				distance += 1
+		samples.append(distance / tree.distance(key1, key2))
+	#print(samples)
+	return sum(samples)/(0.0 + len(samples))
+
+
 scratch_dir = make_scratch_dir(os.path.join(args.output, "scratch"))
 
 read_true_paths = False
@@ -996,12 +1017,14 @@ clones = parse_clone_freqs(args.clone_locations)
 if "Primary" in clones.keys() and "Primary" not in mut_seqs.keys():
 	del clones["Primary"]
 
-for key in mut_seqs.keys():
-	mut_seqs[key] = ''
-
 mega_aln_filename = aln_file_out
 
 initial_tree, node_count = infer_mp_tree(mega_aln_filename)
+
+mut_scale = derive_mut_scale(initial_tree, mut_seqs)
+
+for key in mut_seqs.keys():
+	mut_seqs[key] = ''
 mega_aln_filename = split_mt_leaves(initial_tree, clones, os.path.join(scratch_dir, os.path.splitext(os.path.basename(args.aln))[0]), mut_seqs)
 
 
@@ -1034,6 +1057,8 @@ trees_processed = 0.0
 
 for pmt_tree in permuted_trees:
 	eps = get_eps(pmt_tree, mega_aln_filename, tumor_label_dict)
+#	for clade in pmt_tree.find_clades():
+#		clade.branch_length = round(clade.branch_length * mut_scale)
 	digraph = tree_to_digraph(pmt_tree)
 	tumor_membership = get_node_tumors(eps, tumor_membership_cutoff)
 	bad_result = False
@@ -1152,6 +1177,7 @@ for pmt_tree in permuted_trees:
 		print("Processing sample of {} tumor resolution graphs...".format(sample_size))
 	edge_lists = []
 	edge_lists_probabilities = []
+	edge_lists_lens = []
 	graphic_file_list = []
 	migration_counts = []
 	graphs_processed = 0.0
@@ -1161,15 +1187,16 @@ for pmt_tree in permuted_trees:
 			est_completion = (trees_processed + (graphs_processed/len(tumor_map_list))) / float(len(permuted_trees))
 			print("Finished processing {}% of possible graphs...".format(round(est_completion * 100.0,1)))
 			last_update_time = datetime.datetime.now()
-		edge_list, edge_list_probabilities, counts = generate_edge_list(pmt_tree, record[0])
+		edge_list, edge_list_probabilities, edge_list_lens, counts = generate_edge_list(pmt_tree, record[0])
 		edge_lists.append(edge_list)
 		edge_lists_probabilities.append(edge_list_probabilities)
+		edge_lists_lens.append([round(x * mut_scale) for x in edge_list_lens])
 		migration_counts.append(counts)
 	trees_processed += 1.0
-	temp_sorted = sorted(list(zip(tumor_map_list, edge_lists, edge_lists_probabilities, migration_counts)),
+	temp_sorted = sorted(list(zip(tumor_map_list, edge_lists, edge_lists_probabilities, edge_lists_lens, migration_counts)),
 						 key=lambda row: row[2], reverse=True)
-	tumor_map_list, edge_lists, edge_lists_probabilities, migration_counts = list(zip(*temp_sorted))
-	data_by_tree[pmt_tree] = (tumor_membership, list(zip([x[1] for x in tumor_map_list], [x[0] for x in tumor_map_list], edge_lists, migration_counts)))
+	tumor_map_list, edge_lists, edge_lists_probabilities, edge_lists_lens, migration_counts = list(zip(*temp_sorted))
+	data_by_tree[pmt_tree] = (tumor_membership, list(zip([x[1] for x in tumor_map_list], [x[0] for x in tumor_map_list], edge_lists, migration_counts, edge_lists_lens)))
 
 print("Finished processing graphs, generating outputs...")
 
@@ -1196,7 +1223,7 @@ for tree in key_trees:
 				continue
 			drawn_graphs.add(graph_string)
 			anc_states_idx += 1
-			seeding_graph = make_pydot_seeding_graph(record[2], ['-' for x in record[2]])
+			seeding_graph = make_pydot_seeding_graph(record[2], ['-' for x in record[2]], record[4])
 			seeding_graph.set('label', "Probability: {}".format(record[0]))
 			seeding_graph.set('labelloc', 't')
 			try:
@@ -1211,6 +1238,7 @@ for tree in key_trees:
 	Phylo.write(tree, os.path.join(scratch_dir, os.path.splitext(os.path.basename(args.aln))[0] + "_tree_{}.nwk".format(tree_idx)), 'newick')
 
 composite_weighted_edges = {}
+composite_weighted_edge_lens = {}
 
 with open(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))[0] + "_all_output_counts.txt"), 'w') as output_accs_file:
 	fields = ["dataset", "probability", "migration_count", "comigration_count", "source_count", "tree_idx"]
@@ -1223,12 +1251,14 @@ with open(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))
 		for tree in key_trees:
 			tree_idx += 1
 			pmt_weighted_edges = {}
+			pmt_weighted_edge_lens = {}
 			probability_sum = sum([record[0] for record in data_by_tree[tree][1]])
 			for record in data_by_tree[tree][1]:
 				# format of record is (joint_probability, node_tumor_membership, migration_edges, migration_counts)
 				accs_file_record = [os.path.splitext(os.path.basename(args.aln))[0], record[0], record[3][2], record[3][0], record[3][4], tree_idx]
-				for edge in record[2]:
+				for edge, edge_len in zip(record[2], record[4]):
 					pmt_weighted_edges[edge] = pmt_weighted_edges.get(edge, 0) + (record[0] / probability_sum)
+					pmt_weighted_edge_lens[edge] = pmt_weighted_edge_lens.get(edge, 0) + ((record[0] * edge_len) / probability_sum)
 				if read_true_paths:
 					acc_counts = analyze_edge_list(true_paths, record[2])
 					accs_file_record = accs_file_record + [acc_counts[x] for x in count_keys]
@@ -1236,8 +1266,10 @@ with open(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))
 				output_accs_file.write("{}\n".format("\t".join([str(x) for x in accs_file_record])))
 			for edge in pmt_weighted_edges.keys():
 				composite_weighted_edges[edge] = composite_weighted_edges.get(edge, 0) + pmt_weighted_edges[edge]
+				composite_weighted_edge_lens[edge] = composite_weighted_edge_lens.get(edge, 0) + pmt_weighted_edge_lens[edge]
 		for edge in composite_weighted_edges.keys():
 			composite_weighted_edges[edge] = composite_weighted_edges[edge] / len(data_by_tree)
+			composite_weighted_edge_lens[edge] = composite_weighted_edge_lens[edge] / len(data_by_tree)
 
 	else:
 		flat_results = [] # list of tuples with contents: (tree, tumor_map, probability, migration_count, comigration_count, source_count, edge_list)
@@ -1245,7 +1277,7 @@ with open(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))
 		for tree in key_trees:
 			tree_idx += 1
 			for record in data_by_tree[tree][1]:
-				flat_results.append((tree, record[1], record[0], record[3][2], record[3][0], record[3][4], record[2]))
+				flat_results.append((tree, record[1], record[0], record[3][2], record[3][0], record[3][4], record[2], record[4]))
 				accs_file_record = [os.path.splitext(os.path.basename(args.aln))[0], record[0], record[3][2], record[3][0], record[3][4], tree_idx]
 				if read_true_paths:
 					acc_counts = analyze_edge_list(true_paths, record[2])
@@ -1266,27 +1298,31 @@ with open(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))
 			temp_total_prob = 0
 			for result in picked_results:
 				temp_total_prob += result[2]
-				for edge in result[6]:
+				for edge, edge_len in zip(result[6], result[7]):
 					composite_weighted_edges[edge] = composite_weighted_edges.get(edge, 0.0) + result[2]
+					composite_weighted_edge_lens[edge] = composite_weighted_edge_lens.get(edge, 0.0) + (edge_len * result[2])
 			for edge in composite_weighted_edges.keys():
 				composite_weighted_edges[edge] = composite_weighted_edges[edge] / temp_total_prob
+				composite_weighted_edge_lens[edge] = composite_weighted_edge_lens[edge] / temp_total_prob
 		else:
 			picked_results = [x for x in flat_results if x[3] == mig_min and x[4] == comig_min and x[5] == src_min and x[2] == prob_max]
 			print("Maximum probability of filtered result sets:{}   Results with maximum probability:{}".format(prob_max, len(picked_results)))
 			for result in picked_results:
-				for edge in result[6]:
+				for edge, edge_len in zip(result[6], result[7]):
 					composite_weighted_edges[edge] = composite_weighted_edges.get(edge, 0.0) + 1.0
+					composite_weighted_edge_lens[edge] = composite_weighted_edge_lens.get(edge, 0.0) + edge_len
 			for edge in composite_weighted_edges.keys():
 				composite_weighted_edges[edge] = composite_weighted_edges[edge] / len(picked_results)
+				composite_weighted_edge_lens[edge] = composite_weighted_edge_lens[edge] / len(picked_results)
 
 edge_list = sorted(composite_weighted_edges.keys())
 
 with open(os.path.join(args.output, os.path.splitext(os.path.basename(args.aln))[0] + "_Mig.txt"), 'w') as file:
-	file.write("Edge\tProbability\n")
+	file.write("Edge\tProbability\tMutation_Count\n")
 	for edge in edge_list:
-		file.write("{}\t{}\n".format(edge, round(composite_weighted_edges[edge], 4)))
+		file.write("{}\t{}\t{}\n".format(edge, round(composite_weighted_edges[edge], 4), round(composite_weighted_edge_lens[edge], 4)))
 
-seeding_graph = make_pydot_seeding_graph(edge_list, [composite_weighted_edges[x] for x in edge_list])
+seeding_graph = make_pydot_seeding_graph(edge_list, [composite_weighted_edges[x] for x in edge_list], [composite_weighted_edge_lens[x] for x in edge_list])
 
 try:
 	seeding_graph.write_png(
