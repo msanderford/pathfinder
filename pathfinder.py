@@ -988,8 +988,9 @@ def derive_mut_scale(tree, seqs):
 			if position[0].upper() != position[1].upper():
 				distance += 1
 		if min_distance is None or min_distance > distance:
-			min_distance = distance
-			mut_scale = distance / tree.distance(key, 'Normal')
+			if distance > 0:
+				min_distance = distance
+				mut_scale = distance / tree.distance(key, 'Normal')
 	return mut_scale
 
 
