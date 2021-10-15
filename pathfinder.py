@@ -452,6 +452,8 @@ def get_node_tumors(eps, threshold):
 def tree_to_digraph(tree, start_node = 'Normal'):
 	new_nwx_graph = Phylo.to_networkx(tree)
 	new_pydot_graph = networkx.drawing.nx_pydot.to_pydot(new_nwx_graph)
+	for edge in new_pydot_graph.get_edge_list():
+		edge.obj_dict["attributes"]["weight"] = tree.distance(edge.get_source(), edge.get_destination())
 	# Remove cyclical edges
 	for node in new_pydot_graph.get_nodes():
 		if new_pydot_graph.del_edge(node, node):
@@ -977,20 +979,18 @@ class PermutedMembership:
 
 def derive_mut_scale(tree, seqs):
 	keys = list(seqs.keys())
-	random.shuffle(keys)
-	counter = 0
-	samples = []
-	while len(keys) >= 2 and counter < 10:
+	keys.remove('Normal')
+	min_distance = None
+	while len(keys) > 0:
 		distance = 0.0
-		counter += 1
-		key1 = keys.pop(0)
-		key2 = keys.pop(0)
-		for position in zip(seqs[key1], seqs[key2]):
+		key = keys.pop()
+		for position in zip(seqs[key], seqs['Normal']):
 			if position[0].upper() != position[1].upper():
 				distance += 1
-		samples.append(distance / tree.distance(key1, key2))
-	#print(samples)
-	return sum(samples)/(0.0 + len(samples))
+		if min_distance is None or min_distance > distance:
+			min_distance = distance
+			mut_scale = distance / tree.distance(key, 'Normal')
+	return mut_scale
 
 
 scratch_dir = make_scratch_dir(os.path.join(args.output, "scratch"))
