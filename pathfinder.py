@@ -64,6 +64,7 @@ parser.add_argument("--use_all_weighted_outputs", help="Make final weighted edge
 parser.add_argument("--infer_primary_seq", help="Infer primary clone sequence based on Normal and all clone sequences.", action='store_true', default=False)
 parser.add_argument("--default_normal_char", help="Default character to use for Normal sequence, if Normal sequence is not specified in input alignment.", type=str, default=None)
 parser.add_argument("--draw_all_outputs", help="Generate migration graph and phylogeny images for all sampled permutations/configurations.", action='store_true', default=False)
+parser.add_argument("--label_all_nodes", help="Label all internal nodes in generated phylogeny images.", action='store_true', default=False)
 parser.add_argument("--phy_scale_x", help="Horizontal scaling factor for tree image outputs.", type=float, default=1.0)
 parser.add_argument("--phy_scale_y", help="Vertical scaling factor for tree image outputs.", type=float, default=1.0)
 parser.add_argument("--acc_by_edge_type", help="Break accuracy counts into P->M, M->M, M->P.", action='store_true', default=False)
@@ -890,7 +891,7 @@ def draw_tumor_labeled_phylogeny(input_tree, node_tumors, filename):
 					name_str = key
 				else:
 					name_str = "{}_{}".format(key, round(node_tumors[node_name][key], 2))
-				if node_name[0:8] != "anc_node":
+				if node_name[0:8] != "anc_node" or args.label_all_nodes:
 					name_str = name_str + "({})".format(node_name)
 		# name_str = "{}_{}({})".format(key, node_tumors[node_name][key], node_name)
 		else:
