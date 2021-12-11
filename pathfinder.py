@@ -605,7 +605,7 @@ def generate_edge_list(static_tree, tumor_map):
 	mig_count2 = len(temp_edge_list)
 	source_count2 = len(set([temp_edge[0].split('->')[0] for temp_edge in temp_edge_list]))
 
-	temp_edge_list.sort(key=lambda tup: tup[1], reverse=True)
+	temp_edge_list.sort(key=lambda tup: (tup[3], tup[1]), reverse=True)
 	temp_migration_edges = []
 	temp_migration_edge_probabilities = []
 	temp_migration_edge_lens = []
