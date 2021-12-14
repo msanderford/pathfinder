@@ -7,6 +7,7 @@
 !.gitignore
 !README.txt
 !ancestral_seqs_ML_protein.mao
+!ancestral_seqs_ML_nucleotide.mao
 !infer_NJ_amino_acid.mao
 !megacc_200422.exe
 !megacc.exe

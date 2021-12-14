@@ -38,6 +38,7 @@ from tree_permute import permute_unique_trees
 megacc_app = "megacc_11210415.exe"
 mp_tree_infer_mao = "infer_NJ_amino_acid.mao"
 ancestral_seqs_mao = "ancestral_seqs_ML_protein.mao"
+ancestral_seqs_nuc_mao = "ancestral_seqs_ML_nucleotide.mao"
 outgroup_file = "outgroup.txt"
 # resolve_polytomy_to_most_diverse_node = True
 
@@ -412,10 +413,10 @@ def clear_ep_files(basename):
 		os.remove("{}eps_avg_blens.csv".format(basename))
 		os.remove("{}eps_data_coverage.csv".format(basename))
 		os.remove("{}eps_ML_data.csv".format(basename))
+		os.remove("{}eps_nodeMap_nodeNames.txt".format(basename))
 	except:
 		pass
 	os.remove("{}eps_nodeMap.txt".format(basename))
-	os.remove("{}eps_nodeMap_nodeNames.txt".format(basename))
 	os.remove("{}eps_summary.txt".format(basename))
 
 def get_eps(tree, aln_filename, site_labels):
@@ -446,6 +447,40 @@ def get_eps(tree, aln_filename, site_labels):
 			print("Could not copy ancestral sequence inference result file to logging directory.")
 	clear_ep_files(temp_basename)
 	return eps
+
+def get_nuc_anc_seqs(tree, aln_filename):
+	temp_id = "nuc_anc_seqs_{}".format(random.randint(100000, 999999))
+	temp_basename = os.path.join(scratch_dir, "{}_".format(temp_id))
+	tree_filename = os.path.join(scratch_dir, "{}_anc_seqs_in.nwk".format(os.path.splitext(os.path.basename(aln_filename))[0]))
+	nodemap_filename = "{}eps_nodeMap.txt".format(temp_basename)
+	temp_tree = copy.deepcopy(tree)
+	Phylo.write(temp_tree, tree_filename, 'newick')
+	anc_seqs_filename = "{}eps.csv".format(temp_basename)
+	node_map_filename = "{}eps_nodeMap.txt".format(temp_basename)
+	megacc_cmd = "{} -a {} -d {} -t {} -o {} -g {}".format(megacc_app, ancestral_seqs_nuc_mao, aln_filename, tree_filename, anc_seqs_filename, outgroup_file)
+	if print_megacc_cmd: print(megacc_cmd)
+	if mega_io_logging:
+		shutil.copy(aln_filename, os.path.join(args.output, "ancestral_inference_logging", "{}_".format(temp_id) + os.path.basename(aln_filename)))
+		shutil.copy(tree_filename, os.path.join(args.output, "ancestral_inference_logging", "{}_".format(temp_id) + os.path.basename(tree_filename)))
+	FNULL = open(os.devnull, 'w')
+	return_code = subprocess.call(megacc_cmd, stdout=FNULL, stderr=subprocess.STDOUT)
+	if return_code != 0:
+		raise ValueError('MEGACC returned error code', return_code)
+	#Still map MEGA node names to internal node names
+	#eps = parse_ep_outputs(temp_basename, tree, site_labels)
+	mega_node_map = map_mega_node_names(nodemap_filename, tree)
+	if mega_io_logging:
+		with open("{}eps_nodeMap_nodeNames.txt".format(temp_basename), 'w') as file:
+			for key in mega_node_map.keys(): file.write("{}\t{}\n".format(key, mega_node_map[key]))
+	if mega_io_logging:
+		try:
+			shutil.copy(anc_seqs_filename, os.path.join(args.output, "ancestral_inference_logging"))
+			shutil.copy(node_map_filename, os.path.join(args.output, "ancestral_inference_logging"))
+			shutil.copy("{}eps_nodeMap_nodeNames.txt".format(temp_basename), os.path.join(args.output, "ancestral_inference_logging"))
+		except:
+			print("Could not copy nucleotide ancestral sequence inference result file to logging directory.")
+	clear_ep_files(temp_basename)
+	return mega_node_map
 
 def get_node_tumors(eps, threshold):
 	new_tumor_membership = {}
@@ -1064,6 +1099,8 @@ update_interval = 10
 update_user = False
 last_update_time = datetime.datetime.now()
 trees_processed = 0.0
+
+mega_node_map = get_nuc_anc_seqs(permuted_trees[0], aln_file_out)
 
 for pmt_tree in permuted_trees:
 	eps = get_eps(pmt_tree, mega_aln_filename, tumor_label_dict)
