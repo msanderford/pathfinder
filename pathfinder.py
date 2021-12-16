@@ -618,9 +618,13 @@ def generate_edge_list(static_tree, tumor_map):
 			temp_migration_edges.append("{}->{}".format(next(iter(src_node.keys())), next(iter(dst_node.keys()))))
 			temp_migration_edge_probabilities.append(next(iter(src_node.values())) * next(iter(dst_node.values())))
 			temp_migration_edge_lens.append(edge.obj_dict["attributes"]["length"])
-			temp_node_edges.append((node_groups[edge.get_source()], node_groups[edge.get_destination()], static_tree.distance(edge.get_source(), edge.get_destination())))
+			if node_groups[edge.get_source()] == node_groups[edge.get_destination()]:
+				temp_node_edges.append(
+					(edge.get_source(), edge.get_destination(), static_tree.distance(edge.get_source(), edge.get_destination())))
+			else:
+				temp_node_edges.append((node_groups[edge.get_source()], node_groups[edge.get_destination()], static_tree.distance(edge.get_source(), edge.get_destination())))
+			#temp_node_edges.append((edge.get_source(), edge.get_destination(), static_tree.distance(edge.get_source(), edge.get_destination())))
 	temp_edge_list = list(zip(temp_migration_edges, temp_migration_edge_probabilities, temp_migration_edge_lens, temp_node_edges))
-
 	# If a 0-length edge contained in a polytomy duplicates or reverses another edge attached to that polytomy, the 0-length edge should be dropped
 	i = 0
 	nonzero_edges = [record for record in zip(temp_edge_list, temp_node_edges) if record[1][2] > 0.0]
@@ -772,7 +776,12 @@ def get_avg_mig_probs(mig_file_list):
 
 def split_mt_leaves(tree, clones, basename, mut_seqs=None): # Split multi-tumor leaf nodes in tree and generate tumor-only alignment file
 	out_filename = basename + "_tumors.meg"
+	split_mt_file = basename + "_split.meg"
 	tumor_seqs = {}
+	if mut_seqs is not None:
+		temp_mut_seqs = copy.deepcopy(mut_seqs)
+		for key in mut_seqs.keys():
+			mut_seqs[key] = ''
 	with open(out_filename, 'w') as file:
 		file.write("#MEGA\n")
 		file.write("!Title SNVs;\n")
@@ -787,6 +796,7 @@ def split_mt_leaves(tree, clones, basename, mut_seqs=None): # Split multi-tumor 
 				tumor_seqs["{}:{}".format(clone, tumor_list[0])] = rev_tumor_label_dict[tumor_list[0]]
 				if mut_seqs is not None:
 					mut_seqs["{}:{}".format(clone, tumor_list[0])] = mut_seqs[clone]
+					temp_mut_seqs["{}:{}".format(clone, tumor_list[0])] = temp_mut_seqs[clone]
 				node_to_split = "{}:{}".format(clone, tumor_list[0])
 				i = 0
 				for tumor in tumor_list[1:]:
@@ -794,6 +804,7 @@ def split_mt_leaves(tree, clones, basename, mut_seqs=None): # Split multi-tumor 
 					tumor_seqs["{}:{}".format(clone, tumor)] = rev_tumor_label_dict[tumor]
 					if mut_seqs is not None:
 						mut_seqs["{}:{}".format(clone, tumor)] = mut_seqs[clone]
+						temp_mut_seqs["{}:{}".format(clone, tumor)] = temp_mut_seqs[clone]
 					new_root_name = "{}_root_{}".format(clone, i)
 					new_clade1 = Phylo.Newick.Clade(0, node_to_split)
 					new_clade2 = Phylo.Newick.Clade(0, "{}:{}".format(clone, tumor))
@@ -812,7 +823,14 @@ def split_mt_leaves(tree, clones, basename, mut_seqs=None): # Split multi-tumor 
 		for key in tumor_seqs:
 			file.write("#{}\n".format(key))
 			file.write("{}\n".format(tumor_seqs[key]))
-	return out_filename
+	with open(split_mt_file, 'w') as file:
+		file.write("#MEGA\n")
+		file.write("!Title SNVs;\n")
+		file.write("!Format datatype=Protein;\n")
+		for key in tumor_seqs:
+			file.write("#{}\n".format(key))
+			file.write("{}\n".format(temp_mut_seqs[key]))
+	return out_filename, split_mt_file
 
 
 def group_polytomies(input_tree):
@@ -1068,9 +1086,9 @@ initial_tree, node_count = infer_mp_tree(mega_aln_filename)
 
 mut_scale = derive_mut_scale(initial_tree, mut_seqs)
 
-for key in mut_seqs.keys():
-	mut_seqs[key] = ''
-mega_aln_filename = split_mt_leaves(initial_tree, clones, os.path.join(scratch_dir, os.path.splitext(os.path.basename(args.aln))[0]), mut_seqs)
+# for key in mut_seqs.keys():
+# 	mut_seqs[key] = ''
+mega_aln_filename, split_aln_filename = split_mt_leaves(initial_tree, clones, os.path.join(scratch_dir, os.path.splitext(os.path.basename(args.aln))[0]), mut_seqs)
 
 
 # detect polytomies in initial tree
@@ -1100,7 +1118,7 @@ update_user = False
 last_update_time = datetime.datetime.now()
 trees_processed = 0.0
 
-mega_node_map = get_nuc_anc_seqs(permuted_trees[0], aln_file_out)
+mega_node_map = get_nuc_anc_seqs(permuted_trees[0], split_aln_filename)
 
 for pmt_tree in permuted_trees:
 	eps = get_eps(pmt_tree, mega_aln_filename, tumor_label_dict)
